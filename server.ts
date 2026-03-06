@@ -149,7 +149,7 @@ app.patch("/api/claims/:id", async (req, res) => {
       };
     }
 
-    await syncToGoogleSheet({ id, status, ...claimData });
+    await syncToGoogleSheet({ ...claimData, id, status });
     res.json({ id, status });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
