@@ -44,6 +44,23 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const GOOGLE_SHEET_WEBHOOK = process.env.GOOGLE_SHEET_WEBHOOK;
+
+async function syncToGoogleSheet(data: any) {
+  if (!GOOGLE_SHEET_WEBHOOK) return;
+  try {
+    await fetch(GOOGLE_SHEET_WEBHOOK, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+  } catch (err) {
+    console.error("Sheet sync failed", err);
+  }
+}
+
 const app = express();
 app.use(express.json());
 
@@ -86,6 +103,7 @@ app.post("/api/claims", async (req, res) => {
       console.log("Email configuration missing, skipping notification.");
     }
     
+    await syncToGoogleSheet({ id: docRef.id, ...claim });
     res.status(201).json({ id: docRef.id, ...claim });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -131,6 +149,7 @@ app.patch("/api/claims/:id", async (req, res) => {
       };
     }
 
+    await syncToGoogleSheet({ id, status, ...claimData });
     res.json({ id, status });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
