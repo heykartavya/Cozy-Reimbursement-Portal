@@ -20,6 +20,11 @@ export default function NeilApprovalDesk() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
+  
+  const [selectedUser, setSelectedUser] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedClaimIds, setSelectedClaimIds] = useState<string[]>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     fetchClaims();
@@ -67,11 +72,56 @@ export default function NeilApprovalDesk() {
     XLSX.writeFile(workbook, `CozyFarms_Claims_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  const filteredClaims = (claims || []).filter(c => 
-    c.submitterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.reason.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredClaims = (claims || []).filter(c => {
+    const matchSearch = c.submitterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        c.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        c.reason.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchUser = selectedUser === 'All' || c.submitterName === selectedUser;
+    const matchStatus = selectedStatus === 'All' || c.status === selectedStatus;
+    
+    return matchSearch && matchUser && matchStatus;
+  });
+
+  const totalSelectedAmount = claims
+    .filter(claim => selectedClaimIds.includes(claim.id))
+    .reduce((sum, claim) => sum + Number(claim.amount), 0);
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedClaimIds(filteredClaims.map(c => c.id));
+    } else {
+      setSelectedClaimIds([]);
+    }
+  };
+
+  const handleSelectClaim = (id: string) => {
+    setSelectedClaimIds(prev => 
+      prev.includes(id) ? prev.filter(claimId => claimId !== id) : [...prev, id]
+    );
+  };
+
+  const handleBatchStatusUpdate = async (newStatus: string) => {
+    if (selectedClaimIds.length === 0) return;
+    setIsUpdating(true);
+
+    try {
+      await Promise.all(
+        selectedClaimIds.map(id => 
+          fetch(`/api/claims/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+          })
+        )
+      );
+      setSelectedClaimIds([]);
+      fetchClaims(); 
+    } catch (error) {
+      console.error("Batch update failed:", error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto py-12 px-4">
@@ -107,8 +157,67 @@ export default function NeilApprovalDesk() {
         </div>
       </div>
 
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6 p-4">
+        <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
+          <div className="flex gap-4">
+            <select 
+              value={selectedUser} 
+              onChange={(e) => { setSelectedUser(e.target.value); setSelectedClaimIds([]); }}
+              className="p-2 border border-slate-200 rounded bg-white min-w-[150px] text-sm outline-none"
+            >
+              <option value="All">All Members</option>
+              <option value="Jitendra">Jitendra</option>
+              <option value="Neil">Neil</option>
+              <option value="Naveena">Naveena</option>
+              <option value="Usman">Usman</option>
+              <option value="Kartavya">Kartavya</option>
+            </select>
+
+            <select 
+              value={selectedStatus} 
+              onChange={(e) => { setSelectedStatus(e.target.value); setSelectedClaimIds([]); }}
+              className="p-2 border border-slate-200 rounded bg-white min-w-[150px] text-sm outline-none"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Paid">Paid</option>
+            </select>
+          </div>
+
+          <div className="text-right">
+            <div className="text-sm text-slate-500">{selectedClaimIds.length} claims selected</div>
+            <div className="font-bold text-xl text-slate-800">Total: ₹{totalSelectedAmount.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 border-t border-slate-100 pt-4">
+          <button 
+            onClick={() => handleBatchStatusUpdate('Pending')}
+            disabled={selectedClaimIds.length === 0 || isUpdating}
+            className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded disabled:opacity-50 transition-colors text-sm font-medium"
+          >
+            Mark Pending
+          </button>
+          <button 
+            onClick={() => handleBatchStatusUpdate('Approved')}
+            disabled={selectedClaimIds.length === 0 || isUpdating}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50 transition-colors text-sm font-medium"
+          >
+            Approve Selected
+          </button>
+          <button 
+            onClick={() => handleBatchStatusUpdate('Paid')}
+            disabled={selectedClaimIds.length === 0 || isUpdating}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded disabled:opacity-50 transition-colors text-sm font-medium"
+          >
+            Pay Selected
+          </button>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-bottom border-slate-100 bg-slate-50/50 flex items-center gap-3">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
           <Search className="w-5 h-5 text-slate-400" />
           <input 
             type="text" 
@@ -123,6 +232,14 @@ export default function NeilApprovalDesk() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-6 py-4 w-12">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 cursor-pointer rounded border-slate-300"
+                    onChange={handleSelectAll}
+                    checked={filteredClaims.length > 0 && selectedClaimIds.length === filteredClaims.length}
+                  />
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Submitter</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Details</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
@@ -134,16 +251,24 @@ export default function NeilApprovalDesk() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
                   </td>
                 </tr>
               ) : filteredClaims.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">No requests found.</td>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">No requests found.</td>
                 </tr>
               ) : filteredClaims.map((claim) => (
                 <tr key={claim.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 cursor-pointer rounded border-slate-300"
+                      checked={selectedClaimIds.includes(claim.id)}
+                      onChange={() => handleSelectClaim(claim.id)}
+                    />
+                  </td>
                   <td className="px-6 py-4">
                     <div className="font-medium text-slate-900">{claim.submitterName}</div>
                     <div className="text-xs text-slate-500">{claim.category}</div>
