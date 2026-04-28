@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { formatDate } from "../lib/utils";
-import { CheckCircle, CreditCard, ExternalLink, Download, Search, Filter, Loader2 } from "lucide-react";
+import { ExternalLink, Download, Search, Filter, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface Claim {
@@ -25,6 +25,9 @@ export default function NeilApprovalDesk() {
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedClaimIds, setSelectedClaimIds] = useState<string[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Generate dynamic list of unique submitters from the database
+  const uniqueSubmitters = Array.from(new Set(claims.map(c => c.submitterName))).filter(Boolean).sort();
 
   useEffect(() => {
     fetchClaims();
@@ -166,11 +169,9 @@ export default function NeilApprovalDesk() {
               className="p-2 border border-slate-200 rounded bg-white min-w-[150px] text-sm outline-none"
             >
               <option value="All">All Members</option>
-              <option value="Jitendra">Jitendra</option>
-              <option value="Neil">Neil</option>
-              <option value="Naveena">Naveena</option>
-              <option value="Usman">Usman</option>
-              <option value="Kartavya">Kartavya</option>
+              {uniqueSubmitters.map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
             </select>
 
             <select 
