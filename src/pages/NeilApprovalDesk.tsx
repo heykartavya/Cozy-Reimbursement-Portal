@@ -130,7 +130,7 @@ export default function NeilApprovalDesk() {
     <div className="max-w-7xl mx-auto py-12 px-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Neil's Approval Desk</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Approval Desk</h1>
           <p className="text-slate-600">Manage and process reimbursement requests.</p>
         </div>
         
