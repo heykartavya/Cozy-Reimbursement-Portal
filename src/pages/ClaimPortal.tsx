@@ -19,10 +19,10 @@ export default function ClaimPortal() {
 
   useEffect(() => {
     console.log("ClaimPortal mounted. Config Check:");
-    console.log("- Firebase API Key:", import.meta.env.VITE_FIREBASE_API_KEY ? "Present" : "Missing");
-    console.log("- Firebase Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID ? "Present" : "Missing");
-    console.log("- Cloudinary Cloud Name:", import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ? "Present" : "Missing");
-    console.log("- Cloudinary Upload Preset:", import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ? "Present" : "Missing");
+    console.log(" Firebase API Key:", import.meta.env.VITE_FIREBASE_API_KEY ? "Present" : "Missing");
+    console.log(" Firebase Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID ? "Present" : "Missing");
+    console.log(" Cloudinary Cloud Name:", import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ? "Present" : "Missing");
+    console.log(" Cloudinary Upload Preset:", import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ? "Present" : "Missing");
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,6 +47,12 @@ export default function ClaimPortal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (files.length === 0) {
+      alert("You must attach at least one proof or receipt to submit a claim.");
+      return;
+    }
+
     setLoading(true);
     console.log("Starting submission process...");
 
@@ -57,61 +63,52 @@ export default function ClaimPortal() {
       
       let receiptUrls: string[] = [];
 
-      if (files.length > 0) {
-        if (!cloudName || !uploadPreset) {
-          throw new Error("Cloudinary is not configured. Please add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your secrets.");
-        }
-
-        console.log(`Uploading ${files.length} files to Cloudinary...`);
-        const uploadPromises = files.map(async (file, index) => {
-          console.log(`Uploading file ${index + 1}: ${file.name} (${file.size} bytes)`);
-          
-          // Force PDFs and Word docs to be uploaded as "raw" files so they can be downloaded
-          // without triggering Cloudinary's default PDF security restrictions.
-          const isDocument = file.name.toLowerCase().match(/\.(pdf|doc|docx)$/);
-          const resourceType = isDocument ? "raw" : "auto";
-          
-          const uploadFormData = new FormData();
-          uploadFormData.append("file", file);
-          uploadFormData.append("upload_preset", uploadPreset);
-
-          try {
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
-              method: "POST",
-              body: uploadFormData,
-            });
-
-            if (!response.ok) {
-              const err = await response.json();
-              throw new Error(err.error?.message || "Failed to upload to Cloudinary");
-            }
-
-            const data = await response.json();
-            console.log(`File ${index + 1} uploaded successfully.`);
-            
-            let finalUrl = data.secure_url;
-            // Fallback: If it still uploaded as an image (e.g., due to preset overrides) and is a PDF/DOC,
-            // force it to download as an attachment to prevent "failed to load" browser errors.
-            if (finalUrl.includes("/image/upload/") && isDocument) {
-              finalUrl = finalUrl.replace("/upload/", "/upload/fl_attachment/");
-            }
-            
-            return finalUrl;
-          } catch (err: any) {
-            console.error(`Error uploading ${file.name}:`, err);
-            throw err;
-          }
-        });
-
-        receiptUrls = await Promise.all(uploadPromises);
-        console.log("All files uploaded.");
-      } else {
-        console.log("No files selected, skipping upload.");
+      if (!cloudName || !uploadPreset) {
+        throw new Error("Cloudinary is not configured. Please add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your secrets.");
       }
+
+      console.log(`Uploading ${files.length} files to Cloudinary...`);
+      const uploadPromises = files.map(async (file, index) => {
+        console.log(`Uploading file ${index + 1}: ${file.name} (${file.size} bytes)`);
+        
+        const isDocument = file.name.toLowerCase().match(/\.(pdf|doc|docx)$/);
+        const resourceType = isDocument ? "raw" : "auto";
+        
+        const uploadFormData = new FormData();
+        uploadFormData.append("file", file);
+        uploadFormData.append("upload_preset", uploadPreset);
+
+        try {
+          const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
+            method: "POST",
+            body: uploadFormData,
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || "Failed to upload to Cloudinary");
+          }
+
+          const data = await response.json();
+          console.log(`File ${index + 1} uploaded successfully.`);
+          
+          let finalUrl = data.secure_url;
+          if (finalUrl.includes("/image/upload/") && isDocument) {
+            finalUrl = finalUrl.replace("/upload/", "/upload/fl_attachment/");
+          }
+          
+          return finalUrl;
+        } catch (err: any) {
+          console.error(`Error uploading ${file.name}:`, err);
+          throw err;
+        }
+      });
+
+      receiptUrls = await Promise.all(uploadPromises);
+      console.log("All files uploaded.");
 
       console.log("Sending data to server...");
       
-      // Fetch with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);
 
