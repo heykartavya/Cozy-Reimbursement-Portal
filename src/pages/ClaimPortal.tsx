@@ -328,7 +328,7 @@ export default function ClaimPortal() {
             onChange={(e) => setViewName(e.target.value)}
           >
             <option value="">Select your name</option>
-            {SUBMITTERS.map((name) => (
+            {['Suresh', 'Manjunath'].map((name) => (
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
