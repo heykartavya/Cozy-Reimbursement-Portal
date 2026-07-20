@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { formatDate } from "../lib/utils";
-import { ExternalLink, Download, Search, Filter, Loader2 } from "lucide-react";
+import { ExternalLink, Download, Search, Filter, Loader2, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface Claim {
@@ -26,7 +26,6 @@ export default function NeilApprovalDesk() {
   const [selectedClaimIds, setSelectedClaimIds] = useState<string[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Generate dynamic list of unique submitters from the database
   const uniqueSubmitters = Array.from(new Set(claims.map(c => c.submitterName))).filter(Boolean).sort();
 
   useEffect(() => {
@@ -126,6 +125,31 @@ export default function NeilApprovalDesk() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedClaimIds.length === 0) return;
+    
+    const confirmDelete = window.confirm(`Are you sure you want to permanently delete ${selectedClaimIds.length} claim(s)? This will also remove them from the Google Sheet.`);
+    if (!confirmDelete) return;
+
+    setIsUpdating(true);
+
+    try {
+      await Promise.all(
+        selectedClaimIds.map(id => 
+          fetch(`/api/claims/${id}`, {
+            method: 'DELETE'
+          })
+        )
+      );
+      setSelectedClaimIds([]);
+      fetchClaims(); 
+    } catch (error) {
+      console.error("Batch delete failed:", error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-12 px-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -192,7 +216,7 @@ export default function NeilApprovalDesk() {
           </div>
         </div>
 
-        <div className="flex gap-3 border-t border-slate-100 pt-4">
+        <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-4">
           <button 
             onClick={() => handleBatchStatusUpdate('Pending')}
             disabled={selectedClaimIds.length === 0 || isUpdating}
@@ -213,6 +237,13 @@ export default function NeilApprovalDesk() {
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded disabled:opacity-50 transition-colors text-sm font-medium"
           >
             Pay Selected
+          </button>
+          <button 
+            onClick={handleDeleteSelected}
+            disabled={selectedClaimIds.length === 0 || isUpdating}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50 transition-colors text-sm font-medium ml-auto flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" /> Delete Selected
           </button>
         </div>
       </div>
