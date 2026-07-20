@@ -156,6 +156,20 @@ app.patch("/api/claims/:id", async (req, res) => {
   }
 });
 
+app.delete("/api/claims/:id", async (req, res) => {
+  try {
+    if (!firestoreDb) throw new Error("Database not initialized");
+    const { id } = req.params;
+    
+    await firestoreDb.collection("claims").doc(id).delete();
+    await syncToGoogleSheet({ id, action: "delete" });
+    
+    res.json({ success: true, id });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/manual-spends", async (req, res) => {
   try {
     if (!firestoreDb) return res.json([]);
